@@ -3,20 +3,225 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CodeMind Ledger · 开发骨架</title>
+  <title>CodeMind Ledger</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
 <body>
-  <main class="layout">
-    <header class="panel">
-      <p class="eyebrow">CodeMind-FZU · 现场编程</p>
-      <h1>个人记账本</h1>
-      <p>当前为团队协作骨架。后续由 D2 完成页面、D3 完成交互。</p>
-      <p id="build-status" role="status">业务功能尚未完成</p>
-    </header>
-    <!-- TODO(D2): 独立编写记录表单、最近记录、查询与统计展示区 -->
-    <!-- TODO(D3): 将前端操作连接到 docs/CONTRACT.md 所述的真实 API -->
+  <main class="stage">
+    <section class="phone-shell" aria-label="CodeMind Ledger 记账应用预览">
+      <span class="side-key side-key--mute" aria-hidden="true"></span>
+      <span class="side-key side-key--up" aria-hidden="true"></span>
+      <span class="side-key side-key--down" aria-hidden="true"></span>
+      <span class="side-key side-key--power" aria-hidden="true"></span>
+
+      <div class="phone-screen">
+        <header class="status-bar" aria-label="设备状态栏">
+          <time>9:41</time>
+          <div class="device-status" aria-hidden="true">
+            <span class="signal"><i></i><i></i><i></i><i></i></span>
+            <span class="wifi">⌁</span>
+            <span class="battery"><i></i></span>
+          </div>
+        </header>
+
+        <section class="app-view home-view" id="home-view" aria-labelledby="home-title">
+          <h1 class="visually-hidden" id="home-title">个人记账本首页</h1>
+
+          <div class="home-toolbar">
+            <a class="month-card" href="#stats-view" aria-label="查看 2026 年 8 月账单">
+              <small>2026</small>
+              <strong>08月</strong>
+              <span aria-hidden="true">⌄</span>
+            </a>
+            <span class="profile-orb" aria-label="个人中心">☺</span>
+          </div>
+
+          <section class="month-summary" aria-label="本月收支汇总">
+            <p>本月支出</p>
+            <strong id="home-expense">4096.88</strong>
+            <div class="summary-pill">
+              <span>收入 <b id="home-income">2032.88</b></span>
+              <i aria-hidden="true"></i>
+              <span>结余 <b id="home-balance">2032.88</b></span>
+            </div>
+          </section>
+
+          <aside class="reminder-card" aria-label="记账提醒">
+            <span class="reminder-icon" aria-hidden="true">🍚</span>
+            <span>
+              <strong>检测到您有一笔午餐待记账</strong>
+              <small>2026 5/12&nbsp;&nbsp;消费金额：19.5元</small>
+            </span>
+          </aside>
+
+          <section class="record-sheet" aria-labelledby="recent-title">
+            <h2 class="visually-hidden" id="recent-title">最近记录</h2>
+
+            <article class="record-group">
+              <header class="date-chip">
+                <time datetime="2026-05-09">05月09日 周一</time>
+                <i aria-hidden="true"></i>
+                <span>支出 <b>385</b></span>
+              </header>
+              <ul class="record-list" id="record-list">
+                <li class="record-item" data-record-id="demo-food">
+                  <span class="record-emoji" aria-hidden="true">🍲</span>
+                  <span class="record-copy"><b>餐饮</b><small>跟同事一起AA</small></span>
+                  <strong>-42.5</strong>
+                </li>
+                <li class="record-item" data-record-id="demo-shopping">
+                  <span class="record-emoji" aria-hidden="true">👝</span>
+                  <span class="record-copy"><b>购物</b><small>买了一件外套</small></span>
+                  <strong>-142.5</strong>
+                </li>
+                <li class="record-item" data-record-id="demo-transport">
+                  <span class="record-emoji" aria-hidden="true">🚕</span>
+                  <span class="record-copy"><b>交通</b><small>打车</small></span>
+                  <strong>-200</strong>
+                </li>
+              </ul>
+            </article>
+
+            <article class="record-group record-group--secondary">
+              <header class="date-chip">
+                <time datetime="2026-05-08">05月08日 周日</time>
+                <i aria-hidden="true"></i>
+                <span>支出 <b>96.8</b></span>
+              </header>
+              <ul class="record-list">
+                <li class="record-item">
+                  <span class="record-emoji" aria-hidden="true">🥤</span>
+                  <span class="record-copy"><b>餐饮</b><small>一杯冰美式~</small></span>
+                  <strong>-22.5</strong>
+                </li>
+              </ul>
+            </article>
+          </section>
+
+          <a class="add-record-button" id="open-add-view" href="#add-view" aria-label="记一笔">
+            <span aria-hidden="true">+</span>
+          </a>
+        </section>
+
+        <section class="app-view add-view" id="add-view" aria-labelledby="add-title">
+          <form class="add-panel" id="record-form">
+            <input id="record-type" name="type" type="hidden" value="expense">
+            <input id="record-amount" name="amount" type="hidden" value="0.00">
+
+            <header class="view-toolbar">
+              <a class="round-button" href="#home-view" aria-label="返回首页">‹</a>
+              <h2 id="add-title">记一笔</h2>
+              <span class="toolbar-spacer" aria-hidden="true"></span>
+            </header>
+
+            <fieldset class="category-grid" id="category-grid">
+              <legend class="visually-hidden">选择支出类别</legend>
+              <label class="category-option is-selected">
+                <input type="radio" name="category" value="餐饮" checked>
+                <span>🍚</span><small>餐饮</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="交通">
+                <span>🚕</span><small>交通</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="购物">
+                <span>🛍️</span><small>购物</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="学习">
+                <span>📚</span><small>学习</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="娱乐">
+                <span>🎮</span><small>娱乐</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="医疗">
+                <span>💊</span><small>医疗</small>
+              </label>
+              <label class="category-option">
+                <input type="radio" name="category" value="其他支出">
+                <span>🧾</span><small>其他支出</small>
+              </label>
+            </fieldset>
+
+            <div class="recent-category-strip" aria-label="最近使用的类别">
+              <span>🚕</span><span>🛍️</span><span class="is-current">🍚</span><span>📚</span><span>🎮</span>
+            </div>
+
+            <section class="amount-card" aria-label="金额和备注">
+              <output id="amount-display" for="record-amount">0.00</output>
+              <label class="note-field">
+                <span>备注：</span>
+                <input id="record-note" name="note" type="text" placeholder="点击填写备注" autocomplete="off">
+              </label>
+            </section>
+
+            <div class="keypad" aria-label="金额键盘">
+              <button type="button" data-key="1">1</button>
+              <button type="button" data-key="2">2</button>
+              <button type="button" data-key="3">3</button>
+              <label class="keypad-date" aria-label="选择记账日期">
+                <input id="record-date" name="date" type="date" value="2026-11-07">
+                <span aria-hidden="true">▦</span>
+              </label>
+              <button type="button" data-key="4">4</button>
+              <button type="button" data-key="5">5</button>
+              <button type="button" data-key="6">6</button>
+              <button type="button" data-key="+">＋</button>
+              <button type="button" data-key="7">7</button>
+              <button type="button" data-key="8">8</button>
+              <button type="button" data-key="9">9</button>
+              <button type="button" data-key="-">−</button>
+              <button type="button" data-key=".">.</button>
+              <button type="button" data-key="0">0</button>
+              <button type="button" data-key="backspace" aria-label="退格">⌫</button>
+              <button class="keypad-confirm" type="submit" aria-label="保存记录">✓</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="app-view stats-view" id="stats-view" aria-labelledby="stats-title">
+          <div class="stats-panel">
+            <header class="view-toolbar stats-toolbar">
+              <a class="round-button" href="#home-view" aria-label="返回首页">‹</a>
+              <h2 id="stats-title">5月账单</h2>
+              <button class="round-button menu-button" type="button" aria-label="账单菜单">☷</button>
+            </header>
+
+            <section class="stats-summary" aria-label="5月收支汇总">
+              <p>本月支出</p>
+              <strong id="stats-expense">14096.88</strong>
+              <div class="summary-pill">
+                <span>收入 <b id="stats-income">2032.88</b></span>
+                <i aria-hidden="true"></i>
+                <span>结余 <b id="stats-balance">2032.88</b></span>
+              </div>
+            </section>
+
+            <div class="bubble-chart" id="category-chart" aria-label="支出分类占比">
+              <article class="stat-bubble bubble-food">
+                <small>餐饮</small><strong>4096.88</strong><span>20.2%</span>
+              </article>
+              <article class="stat-bubble bubble-transport">
+                <small>交通</small><strong>256.8</strong><span>14.1%</span>
+              </article>
+              <article class="stat-bubble bubble-study">
+                <small>学习</small><strong>200</strong><span>5.2%</span>
+              </article>
+              <article class="stat-bubble bubble-entertainment">
+                <small>娱乐</small><strong>100</strong><span>5%</span>
+              </article>
+              <article class="stat-bubble bubble-shopping">
+                <small>购物</small><strong>8009.72</strong><span>54.5%</span>
+              </article>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
   </main>
 </body>
 </html>
