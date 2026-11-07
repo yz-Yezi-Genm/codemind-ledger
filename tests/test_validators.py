@@ -10,6 +10,9 @@ import pytest
 
 import core.validators as v
 
+import math
+from decimal import Decimal
+
 # 与 docs/CONTRACT.md 一致的模拟类别（A3 完成后应完全一致）
 MOCK_CATEGORIES = {
     "income": ["工资", "奖学金", "兼职", "其他收入"],
@@ -103,6 +106,32 @@ def test_invalid_amount_too_many_decimals():
         v.validate_record(_valid_record(amount=1.234))
 
 
+@pytest.mark.parametrize("bad_amount", [float("inf"), float("-inf"), float("nan")])
+def test_invalid_amount_not_finite(bad_amount):
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(amount=bad_amount))
+
+
+def test_valid_decimal_amount():
+    # Decimal 是后端精确金额的常见类型，应被接受
+    assert v.validate_record(_valid_record(amount=Decimal("25.50"))) is None
+
+
+def test_valid_float_with_tiny_tail():
+    # 0.1 + 0.2 的浮点尾数不应被误判为「超过两位小数」
+    assert v.validate_record(_valid_record(amount=0.1 + 0.2)) is None
+
+
+def test_invalid_decimal_not_finite():
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(amount=Decimal("Infinity")))
+
+
+def test_invalid_decimal_too_many_decimals():
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(amount=Decimal("1.234")))
+
+
 # ---------------------------------------------------------------------------
 # validate_record：非法 category
 # ---------------------------------------------------------------------------
@@ -131,6 +160,28 @@ def test_category_belongs_to_income():
 def test_invalid_note_type():
     with pytest.raises(v.ValidationError):
         v.validate_record(_valid_record(note=123))
+
+
+def test_invalid_note_none():
+    # 明确传入 note=None 应被拒绝：提供了就必须是字符串
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(note=None))
+
+
+def test_invalid_id_none():
+    # 明确传入 id=None 应被拒绝：提供了就必须是非空字符串
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(id=None))
+
+
+def test_invalid_id_empty():
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(id=""))
+
+
+def test_valid_id_string():
+    # 合法 id 应能通过
+    assert v.validate_record(_valid_record(id="rec_001")) is None
 
 
 def test_record_must_be_dict():

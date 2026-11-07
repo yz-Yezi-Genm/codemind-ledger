@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import datetime
+import math
+from decimal import Decimal
 
 from core.categories import get_categories
 
@@ -46,13 +48,33 @@ def _validate_date(value):
 
 
 def _validate_amount(value):
-    """amount 必须是数字且严格大于 0，最多两位小数。"""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    """amount 必须是数字且严格大于 0，最多两位小数，且为有限数。
+
+    接受 int / float / decimal.Decimal。
+    两位小数的判断用 Decimal 精确量化，并对浮点尾数误差做微小容忍，
+    避免 0.1 + 0.2 这类常见浮点运算被误判为非法。
+    """
+    if isinstance(value, bool):
         raise ValidationError("amount 必须是数字")
-    if not value > 0:
+
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValidationError("amount 必须是有限数字")
+        d = value
+    elif isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            raise ValidationError("amount 必须是有限数字")
+        # 用 str 构造 Decimal，避免二进制浮点误差被带入十进制
+        d = Decimal(str(value))
+    else:
+        raise ValidationError("amount 必须是数字")
+
+    if d <= 0:
         raise ValidationError("amount 必须大于 0")
-    # 金额仅保留两位小数，超过两位视为非法，避免浮点精度陷阱
-    if round(value, 2) != value:
+
+    # 最多两位小数：量化到 0.01 后与原值比较，容忍浮点尾数微小误差
+    quantized = d.quantize(Decimal("0.01"))
+    if (d - quantized).copy_abs() > Decimal("0.0000001"):
         raise ValidationError("amount 最多保留两位小数")
 
 
@@ -96,12 +118,12 @@ def validate_record(data):
     _validate_amount(data.get("amount"))
     _validate_category(data.get("category"), record_type=data.get("type"))
 
-    # note 可选：仅当出现时校验其类型
-    if "note" in data and data["note"] is not None:
+    # note 可选：未提供时跳过；但一旦提供（含 None），必须是字符串
+    if "note" in data:
         _validate_note(data["note"])
 
-    # id 可选：新增时无需提供；若出现则须为合法字符串
-    if "id" in data and data["id"] is not None:
+    # id 可选：新增时无需提供；但一旦提供（含 None），必须是非空字符串
+    if "id" in data:
         _validate_id(data["id"])
 
     return None
@@ -133,7 +155,7 @@ def validate_partial(updates):
         # 类别合法性依赖 type：若本次未改 type，则无法独立判断，仅校验非空
         _validate_category(updates["category"], record_type=updates.get("type"))
 
-    if "note" in updates and updates["note"] is not None:
+    if "note" in updates:
         _validate_note(updates["note"])
 
     return None
