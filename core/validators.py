@@ -91,11 +91,18 @@ def _validate_amount(value):
         quantized = d.quantize(Decimal("0.01"))
     diff = (d - quantized).copy_abs()
     # 只有浮点输入才容忍其固有的二进制尾数误差。
-    # 浮点尾数是相对误差（约 2.2e-16 × 数值），故容忍量随 |d| 缩放：
+    # 浮点尾数是相对误差（约 2.2e-16 × 数值），故容忍量随 |d| 缩放；
+    # 但需加上限 1e-12：金额极大时（如 1e13）相对值会超过一分，
+    # 导致真实的三位小数也被放行。加上限后，
     # 对 0.1+0.2 给出 ~3e-16 的容忍（覆盖其 4e-17 尾数），
-    # 对 1e-13 这样的非法小金额只给 1e-28（必然拒绝）。
+    # 对 1e-13 这样的非法小金额只给 1e-28（必然拒绝），
+    # 对超大金额也最多容忍 1e-12，不会放宽两位小数的要求。
     # 精确的 int / Decimal 零容忍。
-    tolerance = d.copy_abs() * Decimal("1e-15") if is_float else Decimal("0")
+    tolerance = (
+        min(d.copy_abs() * Decimal("1e-15"), Decimal("1e-12"))
+        if is_float
+        else Decimal("0")
+    )
     if diff > tolerance:
         raise ValidationError("amount 最多保留两位小数")
 

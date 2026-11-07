@@ -165,6 +165,25 @@ def test_valid_float_tail_still_tolerated(ok_amount):
     assert v.validate_record(_valid_record(amount=ok_amount)) is None
 
 
+@pytest.mark.parametrize(
+    "big_amount",
+    [
+        10000000000000.123,     # 评审边界：容忍量有上限，超大金额也不放宽
+        1e10 + 0.005,
+        123456789.123456789,
+    ],
+)
+def test_invalid_amount_huge_value_over_two_decimals(big_amount):
+    # 金额极大时容忍量被钳制在 1e-12，真实的超两位小数仍被拒绝
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(amount=big_amount))
+
+
+def test_valid_huge_amount_within_two_decimals():
+    # 大金额但本身不超过两位小数，仍然合法
+    assert v.validate_record(_valid_record(amount=999999999999999.5)) is None
+
+
 # ---------------------------------------------------------------------------
 # validate_record：非法 category
 # ---------------------------------------------------------------------------
