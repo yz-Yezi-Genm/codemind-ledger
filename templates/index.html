@@ -3,20 +3,214 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CodeMind Ledger · 开发骨架</title>
+  <title>CodeMind Ledger</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
 <body>
-  <main class="layout">
-    <header class="panel">
-      <p class="eyebrow">CodeMind-FZU · 现场编程</p>
-      <h1>个人记账本</h1>
-      <p>当前为团队协作骨架。后续由 D2 完成页面、D3 完成交互。</p>
-      <p id="build-status" role="status">业务功能尚未完成</p>
-    </header>
-    <!-- TODO(D2): 独立编写记录表单、最近记录、查询与统计展示区 -->
-    <!-- TODO(D3): 将前端操作连接到 docs/CONTRACT.md 所述的真实 API -->
+  <main class="stage">
+    <section class="phone-shell" aria-label="CodeMind Ledger 记账应用">
+      <span class="side-key side-key--mute" aria-hidden="true"></span>
+      <span class="side-key side-key--up" aria-hidden="true"></span>
+      <span class="side-key side-key--down" aria-hidden="true"></span>
+      <span class="side-key side-key--power" aria-hidden="true"></span>
+
+      <div class="phone-screen">
+        <header class="status-bar" aria-label="设备状态栏">
+          <time>9:41</time>
+          <div class="device-status" aria-hidden="true">
+            <span class="signal"><i></i><i></i><i></i><i></i></span>
+            <span class="wifi">⌁</span>
+            <span class="battery"><i></i></span>
+          </div>
+        </header>
+
+        <section class="app-view home-view is-active" id="home-view" aria-labelledby="home-title">
+          <h1 class="visually-hidden" id="home-title">个人记账本首页</h1>
+
+          <div class="home-toolbar">
+            <button class="month-card" id="open-stats-btn" type="button" aria-label="查看账单统计">
+              <small>账单周期</small>
+              <strong id="period-label">全部日期</strong>
+              <span aria-hidden="true">›</span>
+            </button>
+            <button class="profile-orb" id="refresh-button" type="button" aria-label="刷新账本数据" title="刷新数据">☺</button>
+          </div>
+
+          <section class="month-summary" aria-label="收支汇总">
+            <p>本期支出</p>
+            <strong id="summary-expense">—</strong>
+            <div class="summary-pill">
+              <span>收入 <b id="summary-income">—</b></span>
+              <i aria-hidden="true"></i>
+              <span>结余 <b id="summary-balance">—</b></span>
+            </div>
+          </section>
+
+          <section class="record-sheet" aria-labelledby="recent-title">
+            <header class="record-sheet-header">
+              <div>
+                <p>RECENT</p>
+                <h2 id="recent-title">最近记录</h2>
+              </div>
+              <span class="record-count">共 <b id="summary-count">—</b> 笔</span>
+            </header>
+            <p class="records-caption" id="records-caption" aria-live="polite"></p>
+            <div class="record-list" id="record-list" aria-live="polite">
+              <p class="empty-state">正在加载记录…</p>
+            </div>
+          </section>
+
+          <button class="add-record-button" id="open-add-btn" type="button" aria-label="记一笔">
+            <span aria-hidden="true">+</span>
+          </button>
+        </section>
+
+        <section class="app-view add-view" id="add-view" aria-labelledby="add-title" hidden>
+          <form class="add-panel" id="record-form">
+            <input id="record-type" name="type" type="hidden" value="expense">
+            <input id="record-category" name="category" type="hidden" value="餐饮">
+            <input id="record-amount" name="amount" type="hidden">
+
+            <header class="view-toolbar">
+              <button class="round-button back-home-btn" type="button" aria-label="返回首页">‹</button>
+              <h2 id="add-title">记一笔</h2>
+              <span class="toolbar-spacer" aria-hidden="true"></span>
+            </header>
+
+            <div class="record-type-tabs" id="record-type-tabs" role="group" aria-label="收支类型">
+              <button class="is-selected" type="button" data-record-type="expense" aria-pressed="true">支出</button>
+              <button type="button" data-record-type="income" aria-pressed="false">收入</button>
+            </div>
+
+            <section class="category-section" aria-labelledby="category-title">
+              <h3 class="visually-hidden" id="category-title">选择类别</h3>
+              <div class="category-grid" id="category-list">
+                <p class="category-loading">正在等待类别数据…</p>
+              </div>
+            </section>
+
+            <section class="amount-card" aria-label="金额和备注">
+              <output id="amount-display" for="record-amount">0.00</output>
+              <small id="amount-expression">请输入金额</small>
+              <label class="note-field">
+                <span>备注：</span>
+                <input id="record-note" name="note" type="text" placeholder="点击填写备注" autocomplete="off">
+              </label>
+            </section>
+
+            <div class="keypad" id="amount-keypad" aria-label="金额键盘">
+              <button type="button" data-key="1">1</button>
+              <button type="button" data-key="2">2</button>
+              <button type="button" data-key="3">3</button>
+              <label class="keypad-date" data-key="date" aria-label="选择记账日期">
+                <input id="record-date" name="date" type="date" required>
+                <span aria-hidden="true">▦</span>
+              </label>
+              <button type="button" data-key="4">4</button>
+              <button type="button" data-key="5">5</button>
+              <button type="button" data-key="6">6</button>
+              <button type="button" data-key="+">＋</button>
+              <button type="button" data-key="7">7</button>
+              <button type="button" data-key="8">8</button>
+              <button type="button" data-key="9">9</button>
+              <button type="button" data-key="-">−</button>
+              <button type="button" data-key=".">.</button>
+              <button type="button" data-key="0">0</button>
+              <button type="button" data-key="backspace" aria-label="退格">⌫</button>
+              <button class="keypad-confirm" type="button" data-key="submit" aria-label="保存记录">✓</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="app-view stats-view" id="stats-view" aria-labelledby="stats-title" hidden>
+          <div class="stats-panel">
+            <header class="view-toolbar stats-toolbar">
+              <button class="round-button back-home-btn" type="button" aria-label="返回首页">‹</button>
+              <h2 id="stats-title">账单统计</h2>
+
+              <details class="filter-drawer" id="filter-drawer">
+                <summary class="round-button menu-button" id="filter-toggle-btn" aria-label="打开筛选条件" aria-controls="filter-form" aria-expanded="false">☷</summary>
+                <form class="filter-form" id="filter-form">
+                  <header>
+                    <strong>筛选账单</strong>
+                    <small>所有条件可选</small>
+                  </header>
+
+                  <label class="filter-field filter-field--wide">
+                    <span>月份</span>
+                    <input id="month-picker" type="month">
+                  </label>
+                  <label class="filter-field">
+                    <span>开始日期</span>
+                    <input name="start_date" type="date">
+                  </label>
+                  <label class="filter-field">
+                    <span>结束日期</span>
+                    <input name="end_date" type="date">
+                  </label>
+                  <label class="filter-field">
+                    <span>收支类型</span>
+                    <select name="record_type">
+                      <option value="">全部类型</option>
+                      <option value="expense">支出</option>
+                      <option value="income">收入</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    <span>类别</span>
+                    <select name="category">
+                      <option value="">全部类别</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    <span>最低金额</span>
+                    <input name="min_amount" type="number" min="0" step="0.01" placeholder="0.00">
+                  </label>
+                  <label class="filter-field">
+                    <span>最高金额</span>
+                    <input name="max_amount" type="number" min="0" step="0.01" placeholder="不限">
+                  </label>
+                  <label class="filter-field filter-field--wide">
+                    <span>显示笔数</span>
+                    <input name="limit" type="number" min="1" step="1" placeholder="5">
+                  </label>
+
+                  <div class="filter-actions">
+                    <button type="reset">重置</button>
+                    <button class="filter-submit" type="submit">应用筛选</button>
+                  </div>
+                </form>
+              </details>
+            </header>
+
+            <section class="stats-summary" aria-label="当前筛选范围收支汇总">
+              <p>当前范围支出</p>
+              <strong data-summary="expense">—</strong>
+              <div class="summary-pill">
+                <span>收入 <b data-summary="income">—</b></span>
+                <i aria-hidden="true"></i>
+                <span>结余 <b data-summary="balance">—</b></span>
+              </div>
+            </section>
+
+            <div class="chart-heading">
+              <span>
+                <small>支出分布</small>
+                <strong>全部日期分类</strong>
+              </span>
+              <button id="chart-view-toggle" type="button" aria-pressed="true">查看排行</button>
+            </div>
+
+            <div class="bubble-chart" id="category-chart" data-view="bubble" aria-label="支出分类占比" aria-live="polite">
+              <p class="empty-state">正在加载图表…</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="message-toast" id="message-toast" role="status" hidden></div>
+      </div>
+    </section>
   </main>
 </body>
 </html>
