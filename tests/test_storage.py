@@ -1,11 +1,62 @@
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 
 import pytest
 
 from core import storage
+
+
+@pytest.mark.parametrize("setting", ["unset", "empty", "relative", "absolute", "home"])
+def test_storage_path_configured_before_startup(tmp_path, setting):
+    project_root = Path(storage.__file__).resolve().parent.parent
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(project_root)
+    env["PYTHONIOENCODING"] = "utf-8"
+    env.pop("CODEMIND_RECORDS_PATH", None)
+    expected = project_root / "data" / "records.json"
+    if setting == "empty":
+        env["CODEMIND_RECORDS_PATH"] = ""
+    elif setting == "relative":
+        env["CODEMIND_RECORDS_PATH"] = "data/custom.json"
+        expected = project_root / "data" / "custom.json"
+    elif setting == "absolute":
+        expected = tmp_path / "custom.json"
+        env["CODEMIND_RECORDS_PATH"] = str(expected)
+    elif setting == "home":
+        env["CODEMIND_RECORDS_PATH"] = "~/ledger/custom.json"
+        expected = Path.home() / "ledger" / "custom.json"
+    result = subprocess.run(
+        [sys.executable, "-c", "from core.storage import RECORDS_PATH; print(RECORDS_PATH)"],
+        cwd=tmp_path, env=env, capture_output=True, encoding="utf-8", check=True,
+    )
+    assert Path(result.stdout.strip()) == expected.resolve()
+
+
+def test_custom_path_save_backup_and_restore(tmp_path):
+    project_root = Path(storage.__file__).resolve().parent.parent
+    path = tmp_path / "custom" / "账本.ledger"
+    env = os.environ.copy()
+    env.update({"PYTHONPATH": str(project_root), "PYTHONIOENCODING": "utf-8",
+                "CODEMIND_RECORDS_PATH": str(path)})
+    script = """
+import os
+from pathlib import Path
+from core import storage
+assert storage.RECORDS_PATH == Path(os.environ['CODEMIND_RECORDS_PATH']).resolve()
+storage.save_records([{'note': '午餐'}])
+storage.save_records([])
+storage.restore_records()
+"""
+    subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env,
+                   capture_output=True, encoding="utf-8", check=True)
+    assert json.loads(path.read_text(encoding="utf-8")) == [{"note": "午餐"}]
+    backup = path.with_name(path.name + ".bak")
+    assert json.loads(backup.read_text(encoding="utf-8")) == [{"note": "午餐"}]
+    assert set(path.parent.iterdir()) == {path, backup}
 
 
 @pytest.fixture

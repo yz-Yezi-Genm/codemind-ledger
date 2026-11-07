@@ -1,6 +1,10 @@
 """A1 负责：JSON 数据文件读写。
 
-统一文件路径：data/records.json（运行时生成，不提交）。
+默认文件路径：data/records.json（运行时生成，不提交）。
+可在启动前设置 CODEMIND_RECORDS_PATH 环境变量；支持绝对路径、~ 和相对项目根目录的路径。
+PowerShell 示例：$env:CODEMIND_RECORDS_PATH = 'D:/ledger/records.json'
+配置在模块导入时读取，修改后需重启；不会自动搬迁旧数据。
+备份与账本同目录，名称为账本完整文件名加 .bak。
 与 B1/B2/B3 的接口已经约定，请勿擅自更名。
 """
 
@@ -10,7 +14,9 @@ from pathlib import Path
 import tempfile
 
 
-RECORDS_PATH = Path(__file__).resolve().parent.parent / "data" / "records.json"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_CONFIGURED_PATH = Path(os.environ.get("CODEMIND_RECORDS_PATH") or "data/records.json").expanduser()
+RECORDS_PATH = (_PROJECT_ROOT / _CONFIGURED_PATH).resolve()
 
 
 def _read_records(path):
@@ -70,7 +76,7 @@ def _atomic_write(path, content, before_replace=None):
 
 
 def save_records(records):
-    """完整覆盖保存并保留上一版有效账本到 records.json.bak。
+    """完整覆盖保存并保留上一版有效账本到 <账本完整文件名>.bak。
 
     首次保存不生成备份；旧账本损坏或备份失败时停止保存。
     仅检查存储结构，业务字段由 A2 校验；不提供并发读改写控制。
@@ -89,7 +95,7 @@ def save_records(records):
 
     def backup_previous():
         if previous is not None:
-            _atomic_write(RECORDS_PATH.with_suffix(".json.bak"), previous)
+            _atomic_write(RECORDS_PATH.with_name(RECORDS_PATH.name + ".bak"), previous)
 
     try:
         _atomic_write(RECORDS_PATH, content, before_replace=backup_previous)
@@ -105,7 +111,7 @@ def restore_records():
     可用于恢复损坏或缺失的账本；备份缺失、损坏时不修改当前文件。
     此操作会丢弃当前账本的更新，调用前应停止其他记账操作。
     """
-    _, content = _read_records(RECORDS_PATH.with_suffix(".json.bak"))
+    _, content = _read_records(RECORDS_PATH.with_name(RECORDS_PATH.name + ".bak"))
     try:
         _atomic_write(RECORDS_PATH, content)
     except PermissionError as error:
