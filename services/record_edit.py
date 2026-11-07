@@ -1,7 +1,7 @@
 """B2 负责：编辑与删除记录。"""
 
 from core.storage import load_records, save_records
-from core.validators import validate_record
+from core.validators import validate_partial, validate_record
 
 
 def _find_record_index(records, record_id):
@@ -28,8 +28,14 @@ def update_record(record_id, updates):
     if "id" in updates and updates["id"] != record_id:
         raise ValueError("不允许修改记录 ID")
 
+    # ID 已由 B2 单独检查；A2 的部分校验只接收可编辑字段。
+    updates_to_apply = {
+        key: value for key, value in updates.items() if key != "id"
+    }
+    validate_partial(updates_to_apply)
+
     # 创建新字典，避免校验失败时污染数据层返回的原对象。
-    updated_record = {**records[record_index], **updates}
+    updated_record = {**records[record_index], **updates_to_apply}
     updated_record["id"] = record_id
     validate_record(updated_record)
 
