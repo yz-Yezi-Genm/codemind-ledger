@@ -116,6 +116,40 @@ def test_invalid_date_raises_value_error():
         filter_records(RECORDS, start_date="not-a-date")
 
 
+def test_nan_amount_raises_value_error():
+    # 字符串形式与 float 形式的 nan 都必须被拦截
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, min_amount="nan")
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, min_amount=float("nan"))
+
+
+def test_infinite_amount_raises_value_error():
+    # inf / -inf 均不是有限数值
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, max_amount="inf")
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, max_amount="-inf")
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, min_amount=float("inf"))
+
+
+@pytest.mark.parametrize(
+    "bad_date",
+    # 审查点名的紧凑格式，以及其他不符合 YYYY-MM-DD 的形状
+    ["20261107", "2026-11-7", "2026-1-07", "2026/11/07", "11-07-2026"],
+)
+def test_non_standard_date_formats_raise_value_error(bad_date):
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, start_date=bad_date)
+
+
+def test_unreal_date_raises_value_error():
+    # 形状符合 YYYY-MM-DD，但月份和日期超出真实范围
+    with pytest.raises(ValueError):
+        filter_records(RECORDS, start_date="2026-13-40")
+
+
 def test_original_records_are_not_modified():
     snapshot = copy.deepcopy(RECORDS)
     filter_records(

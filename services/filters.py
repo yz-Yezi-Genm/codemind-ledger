@@ -1,15 +1,43 @@
 """C1 负责：组合筛选；纯函数，不直接读写 JSON 文件。"""
+import math
+import re
 from datetime import date
+
+
+# 严格限定 YYYY-MM-DD 形状：4 位年、2 位月、2 位日，分隔符必须是短横线
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _parse_date(value):
     """把 YYYY-MM-DD 字符串（或 date 对象）转换为 date 再比较。
 
-    非法格式会抛出 ValueError，由调用方（如 Flask 路由）捕获后转成 400 响应。
+    先做正则形状校验，拒绝 20261107、2026/11/07 等非契约格式；
+    再用 fromisoformat 校验是否为真实日期，拒绝 2026-13-40 这类值。
+    非法输入统一抛出 ValueError，由调用方（如 Flask 路由）转成 400 响应。
     """
     if isinstance(value, date):
         return value
-    return date.fromisoformat(value)
+    if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
+        raise ValueError(f"日期必须为 YYYY-MM-DD 格式：{value!r}")
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"日期必须是真实有效的日期：{value!r}") from None
+
+
+def _parse_amount(value):
+    """把金额参数转换为 float，并拒绝 nan、inf 等非有限数值。
+
+    兼容数字和数字字符串；非法输入抛出 ValueError，
+    由调用方（如 Flask 路由）捕获后转成 400 响应。
+    """
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"金额必须为数字：{value!r}") from None
+    if not math.isfinite(amount):
+        raise ValueError(f"金额必须为有限数字，不能为 nan 或 inf：{value!r}")
+    return amount
 
 
 def _is_enabled(value):
@@ -37,18 +65,18 @@ def filter_records(
 
     参数：
         records: 记录字典列表，字段约定见 docs/CONTRACT.md。
-        start_date, end_date: YYYY-MM-DD 字符串，组成日期闭区间。
+        start_date, end_date: 严格 YYYY-MM-DD 字符串，组成日期闭区间。
         record_type: "income" 或 "expense"，精确匹配。
         category: 中文类别名，精确匹配。
-        min_amount, max_amount: 数字或数字字符串，组成金额闭区间。
+        min_amount, max_amount: 有限数字或数字字符串，组成金额闭区间。
 
     任一筛选项传 None 或空字符串表示不启用该条件；
-    日期或金额格式非法时抛出 ValueError。
+    日期格式不合法、日期不真实或金额为非有限数字（nan/inf）时抛出 ValueError。
     """
     start = _parse_date(start_date) if _is_enabled(start_date) else None
     end = _parse_date(end_date) if _is_enabled(end_date) else None
-    lower = float(min_amount) if _is_enabled(min_amount) else None
-    upper = float(max_amount) if _is_enabled(max_amount) else None
+    lower = _parse_amount(min_amount) if _is_enabled(min_amount) else None
+    upper = _parse_amount(max_amount) if _is_enabled(max_amount) else None
     type_filter = record_type if _is_enabled(record_type) else None
     category_filter = category if _is_enabled(category) else None
 
