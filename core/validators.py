@@ -56,8 +56,9 @@ def _validate_amount(value):
 
     接受 int / float / decimal.Decimal。
     两位小数的判断用 Decimal 精确量化：
-    - float 因二进制表示可能带微小尾数（如 0.1 + 0.2，误差量级约 1e-16），
-      按固定绝对容忍量 1e-12 吸收，远小于一分、又远大于尾数误差；
+    - float 因二进制表示可能带微小尾数（如 0.1 + 0.2），误差与数值大小成比例
+      （双精度相对误差约 2e-16），故按相对容忍量 |d| * 1e-15 吸收；
+    - 真正非法的小金额（如 1e-13）其 diff 远大于相对容忍量，仍会被拒绝；
     - int / Decimal 是精确值，不做任何容忍，超出两位即非法。
     """
     if isinstance(value, bool):
@@ -89,10 +90,12 @@ def _validate_amount(value):
         ctx.prec = max(d.adjusted() + 4, 28)
         quantized = d.quantize(Decimal("0.01"))
     diff = (d - quantized).copy_abs()
-    # 只有浮点输入才容忍其固有的二进制尾数误差；
-    # 容忍量固定为 1e-12（远小于一分、远大于 ~1e-16 的尾数误差），
+    # 只有浮点输入才容忍其固有的二进制尾数误差。
+    # 浮点尾数是相对误差（约 2.2e-16 × 数值），故容忍量随 |d| 缩放：
+    # 对 0.1+0.2 给出 ~3e-16 的容忍（覆盖其 4e-17 尾数），
+    # 对 1e-13 这样的非法小金额只给 1e-28（必然拒绝）。
     # 精确的 int / Decimal 零容忍。
-    tolerance = Decimal("1e-12") if is_float else Decimal("0")
+    tolerance = d.copy_abs() * Decimal("1e-15") if is_float else Decimal("0")
     if diff > tolerance:
         raise ValidationError("amount 最多保留两位小数")
 

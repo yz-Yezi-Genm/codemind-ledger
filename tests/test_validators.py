@@ -149,6 +149,8 @@ def test_valid_decimal_huge_number():
         1e-8,
         1e-7,
         1e-10,
+        1e-13,                   # 评审边界：float 极小金额也不得放行
+        1e-14,
     ],
 )
 def test_invalid_amount_tiny_tail(tiny):
@@ -159,7 +161,7 @@ def test_invalid_amount_tiny_tail(tiny):
 
 @pytest.mark.parametrize("ok_amount", [0.1 + 0.2, 0.07 + 0.08, 0.9 + 0.8])
 def test_valid_float_tail_still_tolerated(ok_amount):
-    # 浮点尾数（约 1e-16）仍应被 1e-12 的固定容忍量吸收
+    # 浮点尾数（与数值成比例、约 1e-16 量级）仍应被相对容忍量吸收
     assert v.validate_record(_valid_record(amount=ok_amount)) is None
 
 
