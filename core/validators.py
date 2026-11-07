@@ -12,13 +12,17 @@ from __future__ import annotations
 
 import datetime
 import math
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 from core.categories import get_categories
 
 
 class ValidationError(ValueError):
     """记录校验失败时抛出，携带中文错误信息。"""
+
+
+# 记录允许出现的字段；多余字段视为非法，避免脏数据被静默保存
+_ALLOWED_FIELDS = {"id", "type", "date", "amount", "category", "note"}
 
 
 # ---------------------------------------------------------------------------
@@ -51,30 +55,41 @@ def _validate_amount(value):
     """amount 必须是数字且严格大于 0，最多两位小数，且为有限数。
 
     接受 int / float / decimal.Decimal。
-    两位小数的判断用 Decimal 精确量化，并对浮点尾数误差做微小容忍，
-    避免 0.1 + 0.2 这类常见浮点运算被误判为非法。
+    两位小数的判断用 Decimal 精确量化：
+    - float 因二进制表示可能带微小尾数（如 0.1 + 0.2），按相对误差容忍；
+    - int / Decimal 是精确值，不做容忍，超出两位即非法。
     """
     if isinstance(value, bool):
         raise ValidationError("amount 必须是数字")
 
+    is_float = False
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise ValidationError("amount 必须是有限数字")
         d = value
-    elif isinstance(value, (int, float)):
+    elif isinstance(value, float):
         if not math.isfinite(value):
             raise ValidationError("amount 必须是有限数字")
         # 用 str 构造 Decimal，避免二进制浮点误差被带入十进制
         d = Decimal(str(value))
+        is_float = True
+    elif isinstance(value, int):
+        d = Decimal(value)
     else:
         raise ValidationError("amount 必须是数字")
 
     if d <= 0:
         raise ValidationError("amount 必须大于 0")
 
-    # 最多两位小数：量化到 0.01 后与原值比较，容忍浮点尾数微小误差
-    quantized = d.quantize(Decimal("0.01"))
-    if (d - quantized).copy_abs() > Decimal("0.0000001"):
+    # 最多两位小数：量化到 0.01 后与原值比较。
+    # 动态精度上下文（按最高位指数估算所需位数），
+    # 避免超大数值量化时抛出 InvalidOperation
+    with localcontext() as ctx:
+        ctx.prec = max(d.adjusted() + 4, 28)
+        quantized = d.quantize(Decimal("0.01"))
+    diff = (d - quantized).copy_abs()
+    tolerance = d.copy_abs() * Decimal("1e-12") if is_float else Decimal("0")
+    if diff > tolerance:
         raise ValidationError("amount 最多保留两位小数")
 
 
@@ -113,6 +128,10 @@ def validate_record(data):
     if not isinstance(data, dict):
         raise ValidationError("记录必须是字典")
 
+    unknown = set(data) - _ALLOWED_FIELDS
+    if unknown:
+        raise ValidationError(f"记录包含未知字段: {', '.join(sorted(unknown))}")
+
     _validate_type(data.get("type"))
     _validate_date(data.get("date"))
     _validate_amount(data.get("amount"))
@@ -137,6 +156,10 @@ def validate_partial(updates):
     """
     if not isinstance(updates, dict):
         raise ValidationError("更新内容必须是字典")
+
+    unknown = set(updates) - _ALLOWED_FIELDS
+    if unknown:
+        raise ValidationError(f"更新内容包含未知字段: {', '.join(sorted(unknown))}")
 
     # 禁止通过编辑改变 id
     if "id" in updates:

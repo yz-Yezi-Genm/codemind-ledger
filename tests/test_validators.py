@@ -10,7 +10,6 @@ import pytest
 
 import core.validators as v
 
-import math
 from decimal import Decimal
 
 # 与 docs/CONTRACT.md 一致的模拟类别（A3 完成后应完全一致）
@@ -132,6 +131,18 @@ def test_invalid_decimal_too_many_decimals():
         v.validate_record(_valid_record(amount=Decimal("1.234")))
 
 
+def test_valid_decimal_huge_number():
+    # 超大金额不应在量化时抛出 InvalidOperation
+    assert v.validate_record(_valid_record(amount=Decimal("1E+100"))) is None
+
+
+@pytest.mark.parametrize("tiny", [Decimal("0.0000000001"), 1e-10])
+def test_invalid_amount_tiny_tail(tiny):
+    # Decimal/int 为精确值，float 的相对误差容忍不允许极小金额蒙混过关
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(amount=tiny))
+
+
 # ---------------------------------------------------------------------------
 # validate_record：非法 category
 # ---------------------------------------------------------------------------
@@ -216,6 +227,20 @@ def test_partial_invalid_field():
 def test_partial_must_be_dict():
     with pytest.raises(v.ValidationError):
         v.validate_partial(None)
+
+
+# ---------------------------------------------------------------------------
+# 未知字段白名单
+# ---------------------------------------------------------------------------
+
+def test_record_reject_unknown_field():
+    with pytest.raises(v.ValidationError):
+        v.validate_record(_valid_record(foo=1))
+
+
+def test_partial_reject_unknown_field():
+    with pytest.raises(v.ValidationError):
+        v.validate_partial({"foo": 1})
 
 
 # ---------------------------------------------------------------------------
