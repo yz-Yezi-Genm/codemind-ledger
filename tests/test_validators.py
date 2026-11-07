@@ -140,11 +140,27 @@ def test_valid_decimal_huge_number():
     assert v.validate_record(_valid_record(amount=Decimal("1E+100"))) is None
 
 
-@pytest.mark.parametrize("tiny", [Decimal("0.0000000001"), 1e-10])
+@pytest.mark.parametrize(
+    "tiny",
+    [
+        Decimal("0.00000001"),   # 评审边界：不得因容忍量被放行
+        Decimal("0.0000001"),
+        Decimal("0.0000000001"),
+        1e-8,
+        1e-7,
+        1e-10,
+    ],
+)
 def test_invalid_amount_tiny_tail(tiny):
-    # Decimal/int 为精确值，float 的相对误差容忍不允许极小金额蒙混过关
+    # 任何超过两位小数的金额都必须被拒绝，不得借浮点容忍蒙混过关
     with pytest.raises(v.ValidationError):
         v.validate_record(_valid_record(amount=tiny))
+
+
+@pytest.mark.parametrize("ok_amount", [0.1 + 0.2, 0.07 + 0.08, 0.9 + 0.8])
+def test_valid_float_tail_still_tolerated(ok_amount):
+    # 浮点尾数（约 1e-16）仍应被 1e-12 的固定容忍量吸收
+    assert v.validate_record(_valid_record(amount=ok_amount)) is None
 
 
 # ---------------------------------------------------------------------------
