@@ -5,7 +5,9 @@
 """
 
 import json
+import os
 from pathlib import Path
+import tempfile
 
 
 RECORDS_PATH = Path(__file__).resolve().parent.parent / "data" / "records.json"
@@ -31,6 +33,7 @@ def save_records(records):
     """将完整记录列表写入 JSON 文件；成功时返回 None。
 
     仅检查存储结构；金额、日期等业务校验由 A2 负责。
+    新内容写入同目录临时文件并同步后，才替换原账本。
     """
     if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
         raise ValueError("记录数据必须是字典组成的列表")
@@ -38,4 +41,18 @@ def save_records(records):
     # 先序列化，避免非法数据导致原文件被提前清空。
     content = json.dumps(records, ensure_ascii=False, indent=2, allow_nan=False)
     RECORDS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RECORDS_PATH.write_text(content, encoding="utf-8")
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=RECORDS_PATH.parent,
+            prefix="records-", suffix=".tmp", delete=False,
+        ) as file:
+            temp_path = Path(file.name)
+            file.write(content)
+            file.flush()
+            os.fsync(file.fileno())
+        # 同目录保证位于同一文件系统；Windows 下须先关闭文件再替换。
+        os.replace(temp_path, RECORDS_PATH)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
