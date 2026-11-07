@@ -19,18 +19,18 @@
 
 | 编号 | 模块 | 主要文件 | 交付标准 | 负责人姓名 |
 | --- | --- | --- | --- | --- |
-| A1 | JSON 存储 | `core/storage.py` | 首次读取、读写持久化、中文内容 | 待填写 |
-| A2 | 记录校验 | `core/validators.py` | 合法/非法类型、金额、日期、类别 | 待填写 |
-| A3 | 类别管理 | `core/categories.py` | 类别列表、类型与类别规则 | 待填写 |
-| B1 | 添加记录 | `services/record_add.py` | 创建唯一 ID、保存、异常处理 | 待填写 |
-| B2 | 修改/删除 | `services/record_edit.py` | ID 查询、更新、删除、找不到 | 待填写 |
-| B3 | 最近记录 | `services/record_list.py` | 按日期排序、limit | 待填写 |
-| C1 | 组合筛选 | `services/filters.py` | 日期、类别、类型、金额上下限 | 待填写 |
-| C2 | 收支汇总 | `services/statistics.py` | 收入、支出、结余、笔数 | 待填写 |
-| C3 | 分类图表数据 | `services/charts.py` | 支出分组、汇总结果 | 待填写 |
-| D1 | Flask API 整合 | `app.py` | 路由调用各模块、HTTP 错误处理 | 待填写 |
-| D2 | 前端页面 | `templates/index.html`、`static/style.css` | 表单、列表、统计区、自适应 | 待填写 |
-| D3 | 前端交互 | `static/app.js` | 请求接口、提示信息、图表 | 待填写 |
+| A1 | JSON 存储 | `core/storage.py` | 首次读取、读写持久化、中文内容 | 王智洋 |
+| A2 | 记录校验 | `core/validators.py` | 合法/非法类型、金额、日期、类别 | 颜俊宇 |
+| A3 | 类别管理 | `core/categories.py` | 类别列表、类型与类别规则 | 薛锦荣 |
+| B1 | 添加记录 | `services/record_add.py` | 创建唯一 ID、保存、异常处理 | 洪添军 |
+| B2 | 修改/删除 | `services/record_edit.py` | ID 查询、更新、删除、找不到 | 赵紫龙 |
+| B3 | 最近记录 | `services/record_list.py` | 按日期排序、limit | 林彦翔 |
+| C1 | 组合筛选 | `services/filters.py` | 日期、类别、类型、金额上下限 | 雷葭雨 |
+| C2 | 收支汇总 | `services/statistics.py` | 收入、支出、结余、笔数 | 吴欣键 |
+| C3 | 分类图表数据 | `services/charts.py` | 支出分组、汇总结果 | 林世颖 |
+| D1 | Flask API 整合 | `app.py` | 路由调用各模块、HTTP 错误处理 | 罗宇泽 |
+| D2 | 前端页面 | `templates/index.html`、`static/style.css` | 表单、列表、统计区、自适应 | 吴诗莹 |
+| D3 | 前端交互 | `static/app.js` | 请求接口、提示信息、图表 | 丁晓炜 |
 
 > 编辑提醒：GitHub 网页可点击文件右上角铅笔图标编辑；多人同时改同一文件可能产生冲突。请逐人保存，或通过个人分支发起 PR，经审核后合并。
 

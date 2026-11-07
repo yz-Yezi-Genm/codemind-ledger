@@ -2,8 +2,28 @@
 
 
 def category_statistics(records):
-    """只汇总 expense，返回 [{'category':'餐饮','amount':200.0}, ...]。
+    """只汇总 expense，返回 [{'category':'餐饮','amount':200.0}, ...]。"""
+    summary = {}
 
-    TODO(C3): 独立实现分组汇总及测试，输出供 D3 画图。
-    """
-    raise NotImplementedError("C3 尚未实现 category_statistics")
+    for record in records:
+        if record.get("type") != "expense":
+            continue
+
+        category = record["category"]
+        amount = record["amount"]
+
+        if category in summary:
+            summary[category] += amount
+        else:
+            summary[category] = amount
+
+    result = []
+    for category, amount in summary.items():
+        result.append({
+            "category": category,
+            "amount": round(amount, 2)
+        })
+
+    result.sort(key=lambda x: x["amount"], reverse=True)
+
+    return result
