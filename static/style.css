@@ -550,6 +550,7 @@ button { color: inherit; }
 .filter-drawer { position: relative; justify-self: end; }
 .filter-drawer > summary { list-style: none; }
 .filter-drawer > summary::-webkit-details-marker { display: none; }
+.filter-drawer[open] > summary { outline: 2px solid rgba(255, 196, 0, 0.65); outline-offset: 2px; }
 .menu-button { font-size: 25px; }
 
 .filter-form {
