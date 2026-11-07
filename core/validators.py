@@ -14,7 +14,7 @@ import datetime
 import math
 from decimal import Decimal, localcontext
 
-from core.categories import get_categories
+from core.categories import is_valid_category
 
 
 class ValidationError(ValueError):
@@ -98,8 +98,7 @@ def _validate_category(value, record_type=None):
     if not isinstance(value, str) or not value.strip():
         raise ValidationError("category 必须是非空字符串")
     if record_type is not None:
-        allowed = get_categories().get(record_type, [])
-        if value not in allowed:
+        if not is_valid_category(record_type, value):
             raise ValidationError(f"category 不属于 {record_type} 的允许类别")
 
 

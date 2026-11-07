@@ -1,6 +1,6 @@
 """A2 模块测试：core/validators.py。
 
-依赖 A3 的 get_categories()，本测试用 monkeypatch 注入模拟类别，
+依赖 A3 的 is_valid_category()，本测试用 monkeypatch 注入模拟类别，
 使 A2 的校验逻辑可独立验证，不阻塞于 A3 尚未实现。
 
 覆盖 CONTRACT.md 要求的校验点：
@@ -21,8 +21,12 @@ MOCK_CATEGORIES = {
 
 @pytest.fixture(autouse=True)
 def _mock_categories(monkeypatch):
-    """把 A3 的 get_categories 替换为模拟实现，隔离未完成依赖。"""
-    monkeypatch.setattr(v, "get_categories", lambda: MOCK_CATEGORIES)
+    """把 A3 的 is_valid_category 替换为模拟实现，隔离未完成依赖。"""
+    monkeypatch.setattr(
+        v,
+        "is_valid_category",
+        lambda record_type, category: category in MOCK_CATEGORIES.get(record_type, []),
+    )
 
 
 def _valid_record(**overrides):
