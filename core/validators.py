@@ -1,10 +1,139 @@
-"""A2 负责：验证收支数据（见 docs/CONTRACT.md）。"""
+"""A2 负责：验证收支数据（见 docs/CONTRACT.md）。
 
+设计说明
+--------
+- validate_record(data)     完整校验，用于新增记录，要求必填字段齐全。
+- validate_partial(updates) 部分校验，用于编辑记录（配合 B2 的 update_record），
+  只校验 updates 中出现的字段；字段缺失时跳过，不把"没传"当成"非法"。
+
+两类函数共用同一套字段级规则，避免校验口径不一致。
+"""
+from __future__ import annotations
+
+import datetime
+
+from core.categories import get_categories
+
+
+class ValidationError(ValueError):
+    """记录校验失败时抛出，携带中文错误信息。"""
+
+
+# ---------------------------------------------------------------------------
+# 字段级校验（每项独立，供完整/部分校验复用）
+# ---------------------------------------------------------------------------
+
+def _validate_type(value):
+    """type 必须为 income 或 expense，不接受中文。"""
+    if not isinstance(value, str):
+        raise ValidationError("type 必须是字符串")
+    if value not in ("income", "expense"):
+        raise ValidationError("type 只能是 income 或 expense")
+
+
+def _validate_date(value):
+    """date 必须为 YYYY-MM-DD，且为真实有效日期。"""
+    if not isinstance(value, str):
+        raise ValidationError("date 必须是字符串")
+    # 严格限定 YYYY-MM-DD：长度固定、分隔符为连字符，
+    # 避免 fromisoformat 接受 20261107 这类紧凑格式
+    if len(value) != 10 or value[4] != "-" or value[7] != "-":
+        raise ValidationError("date 必须是 YYYY-MM-DD 格式")
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        raise ValidationError("date 必须是 YYYY-MM-DD 格式的真实日期")
+
+
+def _validate_amount(value):
+    """amount 必须是数字且严格大于 0，最多两位小数。"""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValidationError("amount 必须是数字")
+    if not value > 0:
+        raise ValidationError("amount 必须大于 0")
+    # 金额仅保留两位小数，超过两位视为非法，避免浮点精度陷阱
+    if round(value, 2) != value:
+        raise ValidationError("amount 最多保留两位小数")
+
+
+def _validate_category(value, record_type=None):
+    """category 必须为中文非空字符串；若给出 type，须属于该 type 的允许类别。"""
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError("category 必须是非空字符串")
+    if record_type is not None:
+        allowed = get_categories().get(record_type, [])
+        if value not in allowed:
+            raise ValidationError(f"category 不属于 {record_type} 的允许类别")
+
+
+def _validate_note(value):
+    """note 必须为字符串（可为空）。"""
+    if not isinstance(value, str):
+        raise ValidationError("note 必须是字符串")
+
+
+def _validate_id(value):
+    """id 必须为非空字符串（编辑时不允许改变 id）。"""
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError("id 必须是非空字符串")
+
+
+# ---------------------------------------------------------------------------
+# 对外接口
+# ---------------------------------------------------------------------------
 
 def validate_record(data):
-    """合法时返回 None；不合法时抛出 ValueError(中文错误信息)。
+    """完整校验一条记录，合法返回 None，非法抛出 ValidationError。
 
-    至少检查：type、date、amount、category；note 可为空。
-    TODO(A2): 独立实现验证规则、编辑时的部分字段验证方案。
+    用于新增记录：type/date/amount/category 为必填，note 可选。
+    category 的合法性会结合 type 一起判断。
     """
-    raise NotImplementedError("A2 尚未实现 validate_record")
+    if not isinstance(data, dict):
+        raise ValidationError("记录必须是字典")
+
+    _validate_type(data.get("type"))
+    _validate_date(data.get("date"))
+    _validate_amount(data.get("amount"))
+    _validate_category(data.get("category"), record_type=data.get("type"))
+
+    # note 可选：仅当出现时校验其类型
+    if "note" in data and data["note"] is not None:
+        _validate_note(data["note"])
+
+    # id 可选：新增时无需提供；若出现则须为合法字符串
+    if "id" in data and data["id"] is not None:
+        _validate_id(data["id"])
+
+    return None
+
+
+def validate_partial(updates):
+    """校验编辑时的部分字段，合法返回 None，非法抛出 ValidationError。
+
+    只校验 updates 中出现的字段；不要求所有字段齐全。
+    B2 合并旧数据与本函数通过后的字段，再做一次 validate_record 兜底。
+    """
+    if not isinstance(updates, dict):
+        raise ValidationError("更新内容必须是字典")
+
+    # 禁止通过编辑改变 id
+    if "id" in updates:
+        raise ValidationError("不允许修改 id")
+
+    if "type" in updates:
+        _validate_type(updates["type"])
+
+    if "date" in updates:
+        _validate_date(updates["date"])
+
+    if "amount" in updates:
+        _validate_amount(updates["amount"])
+
+    if "category" in updates:
+        # 类别合法性依赖 type：若本次未改 type，则无法独立判断，仅校验非空
+        _validate_category(updates["category"], record_type=updates.get("type"))
+
+    if "note" in updates and updates["note"] is not None:
+        _validate_note(updates["note"])
+
+    return None
