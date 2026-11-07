@@ -177,6 +177,34 @@ def test_backup_keeps_only_previous_valid_version(records_path):
     assert storage.load_records() == [{"note": "第三版"}]
 
 
+@pytest.mark.parametrize("backup_content", ['[{"note": "旧备份"}]', "{broken"])
+def test_missing_ledger_blocks_repeated_saves_when_backup_exists(records_path, backup_content):
+    records_path.parent.mkdir()
+    backup = records_path.with_name(records_path.name + ".bak")
+    backup.write_text(backup_content, encoding="utf-8")
+    original = backup.read_bytes()
+
+    for records in ([{"note": "新账本"}], []):
+        with pytest.raises(FileExistsError, match=r"restore_records\(\)"):
+            storage.save_records(records)
+        assert not records_path.exists()
+        assert backup.read_bytes() == original
+        assert list(records_path.parent.iterdir()) == [backup]
+
+
+def test_save_resumes_after_explicit_restore_of_missing_ledger(records_path):
+    records_path.parent.mkdir()
+    backup = records_path.with_name(records_path.name + ".bak")
+    previous = [{"note": "旧备份"}]
+    backup.write_text(json.dumps(previous, ensure_ascii=False), encoding="utf-8")
+
+    storage.restore_records()
+    storage.save_records([{"note": "新账本"}])
+
+    assert storage.load_records() == [{"note": "新账本"}]
+    assert json.loads(backup.read_text(encoding="utf-8")) == previous
+
+
 @pytest.mark.parametrize("broken", ["{broken", "{}", "[1]"])
 def test_damaged_ledger_does_not_overwrite_backup(records_path, broken):
     storage.save_records([{"note": "可恢复"}])

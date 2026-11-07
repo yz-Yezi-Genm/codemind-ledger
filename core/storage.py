@@ -79,6 +79,7 @@ def save_records(records):
     """完整覆盖保存并保留上一版有效账本到 <账本完整文件名>.bak。
 
     首次保存不生成备份；旧账本损坏或备份失败时停止保存。
+    账本缺失但备份存在时，须先显式恢复或处理备份后再保存。
     仅检查存储结构，业务字段由 A2 校验；不提供并发读改写控制。
     """
     if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
@@ -88,14 +89,20 @@ def save_records(records):
     except (TypeError, ValueError) as error:
         raise type(error)(f"保存账本失败：记录包含无法转换为 JSON 的内容：{error}") from error
 
+    backup_path = RECORDS_PATH.with_name(RECORDS_PATH.name + ".bak")
     try:
         _, previous = _read_records(RECORDS_PATH)
     except FileNotFoundError:
+        if backup_path.exists():
+            raise FileExistsError(
+                "保存账本已阻止：账本缺失但备份仍存在，"
+                "请先执行 restore_records() 或明确处理备份后再保存"
+            ) from None
         previous = None
 
     def backup_previous():
         if previous is not None:
-            _atomic_write(RECORDS_PATH.with_name(RECORDS_PATH.name + ".bak"), previous)
+            _atomic_write(backup_path, previous)
 
     try:
         _atomic_write(RECORDS_PATH, content, before_replace=backup_previous)
