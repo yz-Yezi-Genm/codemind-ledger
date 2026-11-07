@@ -5,6 +5,7 @@ D1 需要独立完成实际接口参数解析、服务调用和错误处理。
 请先阅读 docs/CONTRACT.md。
 """
 from flask import Flask, jsonify, render_template
+from core.categories import get_categories
 
 app = Flask(__name__)
 
@@ -64,9 +65,11 @@ def charts_api():
 
 @app.get("/api/categories")
 def categories_api():
-    # TODO(D1): 调用 A3，返回类别列表。
-    return not_implemented()
-
+    categories = get_categories()
+    return jsonify({
+        "success": True,
+        "data": categories
+    })
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
