@@ -221,5 +221,6 @@ __marimo__/
 
 # CodeMind Ledger local runtime data
 /data/records.json
+/data/*.bak
 /data/*.tmp
 /.idea/

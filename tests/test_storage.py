@@ -74,6 +74,8 @@ def test_save_replaces_only_after_new_file_is_complete(records_path, monkeypatch
 
     def inspect_replace(source, target):
         source = Path(source)
+        if Path(target) != records_path:
+            return replace(source, target)
         assert source.parent == records_path.parent
         assert source != records_path
         assert Path(target) == records_path
@@ -87,7 +89,7 @@ def test_save_replaces_only_after_new_file_is_complete(records_path, monkeypatch
     storage.save_records(new_records)
     assert len(replaced) == 1
     assert storage.load_records() == new_records
-    assert list(records_path.parent.iterdir()) == [records_path]
+    assert set(records_path.parent.iterdir()) == {records_path, records_path.with_suffix(".json.bak")}
 
 
 def test_partial_write_failure_preserves_old_file(records_path, monkeypatch):
@@ -111,6 +113,133 @@ def test_partial_write_failure_preserves_old_file(records_path, monkeypatch):
         storage.save_records([{"note": "新账本"}])
     assert records_path.read_bytes() == old_content
     assert list(records_path.parent.iterdir()) == [records_path]
+
+
+def test_backup_keeps_only_previous_valid_version(records_path):
+    backup = records_path.with_suffix(".json.bak")
+    storage.save_records([{"note": "第一版"}])
+    assert not backup.exists()
+    storage.save_records([{"note": "第二版"}])
+    assert json.loads(backup.read_text(encoding="utf-8")) == [{"note": "第一版"}]
+    storage.save_records([{"note": "第三版"}])
+    assert json.loads(backup.read_text(encoding="utf-8")) == [{"note": "第二版"}]
+    assert storage.load_records() == [{"note": "第三版"}]
+
+
+@pytest.mark.parametrize("broken", ["{broken", "{}", "[1]"])
+def test_damaged_ledger_does_not_overwrite_backup(records_path, broken):
+    storage.save_records([{"note": "可恢复"}])
+    storage.save_records([])
+    backup = records_path.with_suffix(".json.bak")
+    old_backup = backup.read_bytes()
+    records_path.write_text(broken, encoding="utf-8")
+    with pytest.raises(ValueError):
+        storage.save_records([])
+    assert backup.read_bytes() == old_backup
+    assert records_path.read_text(encoding="utf-8") == broken
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_explicit_restore_preserves_backup(records_path, missing):
+    storage.save_records([{"note": "恢复中文"}])
+    storage.save_records([])
+    backup = records_path.with_suffix(".json.bak")
+    original = backup.read_bytes()
+    if missing:
+        records_path.unlink()
+    else:
+        records_path.write_text("{broken", encoding="utf-8")
+        with pytest.raises(ValueError, match="JSON.*损坏"):
+            storage.load_records()
+    assert storage.restore_records() is None
+    assert storage.load_records() == [{"note": "恢复中文"}]
+    assert backup.read_bytes() == original
+
+
+@pytest.mark.parametrize("backup_content", [None, "{broken", "{}", "[1]"])
+def test_invalid_backup_does_not_change_ledger(records_path, backup_content):
+    storage.save_records([{"note": "保留"}])
+    original = records_path.read_bytes()
+    if backup_content is not None:
+        records_path.with_suffix(".json.bak").write_text(backup_content, encoding="utf-8")
+    with pytest.raises((ValueError, FileNotFoundError)):
+        storage.restore_records()
+    assert records_path.read_bytes() == original
+
+
+def test_backup_failure_aborts_save(records_path, monkeypatch):
+    storage.save_records([{"note": "第一版"}])
+    storage.save_records([{"note": "第二版"}])
+    original = records_path.read_bytes()
+    backup = records_path.with_suffix(".json.bak")
+    original_backup = backup.read_bytes()
+    replace = os.replace
+
+    def fail_backup(source, target):
+        if Path(target) == backup:
+            raise PermissionError("备份被占用")
+        return replace(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_backup)
+    with pytest.raises(PermissionError, match="保存.*权限|保存.*占用"):
+        storage.save_records([])
+    assert records_path.read_bytes() == original
+    assert backup.read_bytes() == original_backup
+    assert not list(records_path.parent.glob("*.tmp"))
+
+
+def test_restore_failure_keeps_ledger_and_backup(records_path, monkeypatch):
+    storage.save_records([{"note": "第一版"}])
+    storage.save_records([{"note": "第二版"}])
+    original = records_path.read_bytes()
+    backup = records_path.with_suffix(".json.bak")
+    original_backup = backup.read_bytes()
+
+    def fail_replace(source, target):
+        raise PermissionError("目标被占用")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    with pytest.raises(PermissionError, match="恢复.*权限|恢复.*占用"):
+        storage.restore_records()
+    assert records_path.read_bytes() == original
+    assert backup.read_bytes() == original_backup
+    assert not list(records_path.parent.glob("*.tmp"))
+
+
+def test_ledger_replace_failure_keeps_current_version_recoverable(records_path, monkeypatch):
+    storage.save_records([{"note": "第一版"}])
+    storage.save_records([{"note": "第二版"}])
+    original = records_path.read_bytes()
+    replace = os.replace
+
+    def fail_ledger_replace(source, target):
+        if Path(target) == records_path:
+            raise PermissionError("账本被占用")
+        return replace(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_ledger_replace)
+    with pytest.raises(PermissionError, match="保存账本失败"):
+        storage.save_records([{"note": "第三版"}])
+    assert records_path.read_bytes() == original
+    assert records_path.with_suffix(".json.bak").read_bytes() == original
+    assert not list(records_path.parent.glob("*.tmp"))
+
+
+def test_read_permission_error_has_context(records_path, monkeypatch):
+    def fail_read(*args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_text", fail_read)
+    monkeypatch.setattr(Path, "open", fail_read)
+    with pytest.raises(PermissionError, match="读取.*权限"):
+        storage.load_records()
+
+
+def test_invalid_encoding_has_context(records_path):
+    records_path.parent.mkdir()
+    records_path.write_bytes(b"\xff\xfe")
+    with pytest.raises(ValueError, match="UTF-8"):
+        storage.load_records()
 
 
 def test_sync_failure_preserves_old_file(records_path, monkeypatch):

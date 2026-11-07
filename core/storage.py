@@ -13,38 +13,43 @@ import tempfile
 RECORDS_PATH = Path(__file__).resolve().parent.parent / "data" / "records.json"
 
 
-def load_records():
-    """读取所有记录，返回 list[dict]；首次不存在文件时返回空列表。
-
-    损坏 JSON、错误结构和文件访问异常交由调用方处理。
-    """
+def _read_records(path):
+    """校验文件并返回记录与原文；缺失文件仍抛出 FileNotFoundError。"""
     try:
-        with RECORDS_PATH.open("r", encoding="utf-8") as file:
-            records = json.load(file)
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"账本文件不存在：{path}") from error
+    except PermissionError as error:
+        raise PermissionError(f"读取账本失败：无读取权限（{path}）：{error}") from error
+    except UnicodeDecodeError as error:
+        raise ValueError(f"账本文件不是有效的 UTF-8 编码：{path}") from error
+    except OSError as error:
+        raise OSError(f"读取账本失败（{path}）：{error}") from error
+    try:
+        records = json.loads(content)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"账本 JSON 已损坏（{path}），请检查文件或显式恢复备份") from error
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError(f"记录数据必须是字典组成的列表：{path}")
+    return records, content
+
+
+def load_records():
+    """读取所有记录；首次文件不存在时返回 []，损坏时不自动恢复。"""
+    try:
+        records, _ = _read_records(RECORDS_PATH)
+        return records
     except FileNotFoundError:
         return []
 
-    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
-        raise ValueError("记录数据必须是字典组成的列表")
-    return records
 
-
-def save_records(records):
-    """将完整记录列表写入 JSON 文件；成功时返回 None。
-
-    仅检查存储结构；金额、日期等业务校验由 A2 负责。
-    新内容写入同目录临时文件并同步后，才替换原账本。
-    """
-    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
-        raise ValueError("记录数据必须是字典组成的列表")
-
-    # 先序列化，避免非法数据导致原文件被提前清空。
-    content = json.dumps(records, ensure_ascii=False, indent=2, allow_nan=False)
-    RECORDS_PATH.parent.mkdir(parents=True, exist_ok=True)
+def _atomic_write(path, content, before_replace=None):
+    """写完并关闭临时文件后替换；可在替换前执行备份。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=RECORDS_PATH.parent,
+            mode="w", encoding="utf-8", dir=path.parent,
             prefix="records-", suffix=".tmp", delete=False,
         ) as file:
             temp_path = Path(file.name)
@@ -52,7 +57,58 @@ def save_records(records):
             file.flush()
             os.fsync(file.fileno())
         # 同目录保证位于同一文件系统；Windows 下须先关闭文件再替换。
-        os.replace(temp_path, RECORDS_PATH)
+        if before_replace is not None:
+            before_replace()
+        os.replace(temp_path, path)
     finally:
         if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                # 清理失败不能掩盖原始写入异常；残留临时文件不会作为账本读取。
+                pass
+
+
+def save_records(records):
+    """完整覆盖保存并保留上一版有效账本到 records.json.bak。
+
+    首次保存不生成备份；旧账本损坏或备份失败时停止保存。
+    仅检查存储结构，业务字段由 A2 校验；不提供并发读改写控制。
+    """
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError("记录数据必须是字典组成的列表")
+    try:
+        content = json.dumps(records, ensure_ascii=False, indent=2, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise type(error)(f"保存账本失败：记录包含无法转换为 JSON 的内容：{error}") from error
+
+    try:
+        _, previous = _read_records(RECORDS_PATH)
+    except FileNotFoundError:
+        previous = None
+
+    def backup_previous():
+        if previous is not None:
+            _atomic_write(RECORDS_PATH.with_suffix(".json.bak"), previous)
+
+    try:
+        _atomic_write(RECORDS_PATH, content, before_replace=backup_previous)
+    except PermissionError as error:
+        raise PermissionError(f"保存账本失败：无写入权限或文件被占用：{error}") from error
+    except OSError as error:
+        raise OSError(f"保存账本失败，请检查磁盘空间和文件系统：{error}") from error
+
+
+def restore_records():
+    """显式用上一版备份覆盖当前账本，成功返回 None，保留备份不变。
+
+    可用于恢复损坏或缺失的账本；备份缺失、损坏时不修改当前文件。
+    此操作会丢弃当前账本的更新，调用前应停止其他记账操作。
+    """
+    _, content = _read_records(RECORDS_PATH.with_suffix(".json.bak"))
+    try:
+        _atomic_write(RECORDS_PATH, content)
+    except PermissionError as error:
+        raise PermissionError(f"恢复账本失败：无写入权限或文件被占用：{error}") from error
+    except OSError as error:
+        raise OSError(f"恢复账本失败，请检查磁盘空间和文件系统：{error}") from error
