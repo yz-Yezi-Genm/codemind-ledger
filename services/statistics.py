@@ -1,10 +1,24 @@
-"""C2 负责：收入、支出、结余统计；纯函数。"""
+"""C2：收入、支出、结余统计。"""
+
+from decimal import Decimal
 
 
 def calculate_summary(records):
-    """返回 {'income':0.0, 'expense':0.0, 'balance':0.0, 'count':0}。
+    """统计传入的记录，不修改原始数据。"""
+    income = Decimal("0")
+    expense = Decimal("0")
 
-    balance = income - expense；records 可为筛选后的记录列表。
-    TODO(C2): 独立实现并测试空列表、小数、混合收支。
-    """
-    raise NotImplementedError("C2 尚未实现 calculate_summary")
+    for record in records:
+        amount = Decimal(str(record["amount"]))
+
+        if record["type"] == "income":
+            income += amount
+        elif record["type"] == "expense":
+            expense += amount
+
+    return {
+        "income": float(income),
+        "expense": float(expense),
+        "balance": float(income - expense),
+        "count": len(records),
+    }
