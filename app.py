@@ -14,13 +14,15 @@ from core.categories import get_categories
 from core.storage import load_records
 from services.charts import category_statistics
 
-from services.record_edit import delete_record
+from services.record_edit import delete_record, update_record
 
 from services.record_list import get_recent_records
 from services.filters import filter_records
 
-app = Flask(__name__)
+from services.statistics import calculate_summary
 
+app = Flask(__name__)
+app.json.ensure_ascii = False
 
 @app.get("/")
 def index():
@@ -155,8 +157,56 @@ def create_record():
 
 @app.put("/api/records/<record_id>")
 def edit_record(record_id):
-    # TODO(D1): 调用 B2 修改记录，处理记录不存在/参数无效。
-    return not_implemented()
+    """修改指定 ID 的记账记录。"""
+
+    # 1. 获取客户端提交的 JSON
+    updates = request.get_json(silent=True)
+
+    # 2. 检查请求体
+    if not isinstance(updates, dict):
+        return jsonify({
+            "success": False,
+            "error": "请求体必须是 JSON 对象"
+        }), 400
+
+    # 3. 禁止客户端修改记录 ID
+    if "id" in updates:
+        return jsonify({
+            "success": False,
+            "error": "不允许修改记录 ID"
+        }), 400
+
+    try:
+        # 4. 调用 B2 修改记录
+        updated_record = update_record(record_id, updates)
+
+        # 5. 记录不存在
+        if updated_record is None:
+            return jsonify({
+                "success": False,
+                "error": "指定的记账记录不存在"
+            }), 404
+
+        # 6. 修改成功
+        return jsonify({
+            "success": True,
+            "data": updated_record
+        }), 200
+
+    except ValueError as error:
+        # 7. 参数或业务数据不合法
+        return jsonify({
+            "success": False,
+            "error": str(error)
+        }), 400
+
+    except Exception:
+        # 8. 其他服务器异常
+        app.logger.exception("修改记账记录时发生错误")
+        return jsonify({
+            "success": False,
+            "error": "服务器修改记录时发生错误"
+        }), 500
 
 
 @app.delete("/api/records/<record_id>")
@@ -188,8 +238,40 @@ def remove_record(record_id):
 
 @app.get("/api/statistics")
 def statistics_api():
-    # TODO(D1): 调用 C1/C2，返回筛选后的统计结果。
-    return not_implemented()
+    """返回收支汇总，支持组合筛选。"""
+    try:
+        records = load_records()
+
+        filter_keys = (
+            "start_date", "end_date", "record_type",
+            "category", "min_amount", "max_amount"
+        )
+
+        conditions = {
+            key: request.args.get(key)
+            for key in filter_keys
+        }
+
+        records = filter_records(records, **conditions)
+        summary = calculate_summary(records)
+
+        return jsonify({
+            "success": True,
+            "data": summary
+        }), 200
+
+    except ValueError as error:
+        return jsonify({
+            "success": False,
+            "error": str(error)
+        }), 400
+
+    except Exception:
+        app.logger.exception("获取收支统计失败")
+        return jsonify({
+            "success": False,
+            "error": "服务器获取收支统计时发生错误"
+        }), 500
 
 
 @app.get("/api/charts")
